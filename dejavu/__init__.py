@@ -109,11 +109,19 @@ class Dejavu:
                 # Print traceback because we can't reraise it here
                 traceback.print_exc(file=sys.stdout)
             else:
+                print("Here", flush=True)
+                print(song_name)
+                print(file_hash)
+                print(len(hashes))
+                print(sorted(hashes, key=lambda x: x[0]))
+                print(sorted(hashes, key=lambda x: (x[1], x[0])))
+
                 sid = self.db.insert_song(song_name, file_hash, len(hashes))
 
                 self.db.insert_hashes(sid, hashes)
                 self.db.set_song_fingerprinted(sid)
                 self.__load_fingerprinted_audio_hashes()
+                exit()
 
         pool.close()
         pool.join()
