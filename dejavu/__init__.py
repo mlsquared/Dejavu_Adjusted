@@ -126,7 +126,7 @@ class Dejavu:
     @staticmethod
     def custom_write_fpt_file(filename, hashes, file_hash):
         print("Now in custom function")
-        working_dir = os.getcwd().split("/")[1]  # Should be "app"
+        working_dir = "/" + os.getcwd().split("/")[1]  # Should be "/app"
         fpt_dir = os.getenv("FPT_FILES_DIRECTORY")
         fpt_dir = os.path.join(working_dir, fpt_dir)
 
