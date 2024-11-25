@@ -138,13 +138,13 @@ class Dejavu:
         metadata = {
             "algorithm": "dejavu",
             "content_id": filename,
-            "audio_duration": round(float(last_offset) / DEFAULT_FS * DEFAULT_WINDOW_SIZE * DEFAULT_OVERLAP_RATIO) * 1000,
+            "audio_duration": round(float(last_offset) / DEFAULT_FS * DEFAULT_WINDOW_SIZE * DEFAULT_OVERLAP_RATIO, 3),
             "num_fingerprints": len(hashes),
             "filehash": file_hash
         }
 
         writer = FingerprintWriter(filename=os.path.join(fpt_dir, filename + ".fpt"), fields=fields, kwargs=metadata)
-        print(f"Created fpt file, {os.path.join(fpt_dir, filename + ".fpt")}")
+        print(f"Created fpt file, {os.path.join(fpt_dir, filename + '.fpt')}")
         # Adding some comments first to the .fpt file
         # These are unique to dejavu algorithm, change as needed
         writer.add_comments("")
@@ -157,7 +157,7 @@ class Dejavu:
 
         for hash_val, offset in hashes:
             # Convert the offset into milliseconds
-            ts = round(float(offset) / DEFAULT_FS * DEFAULT_WINDOW_SIZE * DEFAULT_OVERLAP_RATIO) * 1000
+            ts = round(float(offset) / DEFAULT_FS * DEFAULT_WINDOW_SIZE * DEFAULT_OVERLAP_RATIO * 1000)
             hash_val = "0x" + hash_val.upper()  # Adjust the hash
             writer.write_fingerprints(hash_val, ts)
 
