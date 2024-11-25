@@ -134,7 +134,7 @@ class Dejavu:
         hashes = sorted(hashes, key=lambda x: (x[1], x[0]))
 
         fields = [("hash", "str"), ("ts", "int")]
-        last_offset = hashes[-1][1]
+        last_offset = 0 if len(hashes) == 0 else hashes[-1][1]
         metadata = {
             "algorithm": "dejavu",
             "content_id": filename,
