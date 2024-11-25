@@ -17,6 +17,8 @@ from dejavu.config.settings import (DEFAULT_FS, DEFAULT_OVERLAP_RATIO,
                                     OFFSET_SECS, SONG_ID, SONG_NAME, TOPN)
 from dejavu.logic.fingerprint import fingerprint
 
+from fingerprint_writer_custom import FingerprintWriter
+
 
 class Dejavu:
     def __init__(self, config):
@@ -109,22 +111,54 @@ class Dejavu:
                 # Print traceback because we can't reraise it here
                 traceback.print_exc(file=sys.stdout)
             else:
-                print("Here", flush=True)
-                print(song_name)
-                print(file_hash)
-                print(len(hashes))
-                print(sorted(hashes, key=lambda x: x[0]))
-                print(sorted(hashes, key=lambda x: (x[1], x[0])))
+                # Write to .fpt file instead of adding to DB
+                self.custom_write_fpt_file(song_name, hashes, file_hash)
 
-                sid = self.db.insert_song(song_name, file_hash, len(hashes))
-
-                self.db.insert_hashes(sid, hashes)
-                self.db.set_song_fingerprinted(sid)
-                self.__load_fingerprinted_audio_hashes()
-                exit()
+                # sid = self.db.insert_song(song_name, file_hash, len(hashes))
+                #
+                # self.db.insert_hashes(sid, hashes)
+                # self.db.set_song_fingerprinted(sid)
+                # self.__load_fingerprinted_audio_hashes()
 
         pool.close()
         pool.join()
+
+    @staticmethod
+    def custom_write_fpt_file(filename, hashes, file_hash):
+        working_dir = os.getcwd()
+        fpt_dir = os.getenv("FPT_FILES_DIRECTORY")
+        fpt_dir = os.path.join(working_dir, fpt_dir)
+
+        # Sort the hashes based on offset first, then hash value
+        hashes = sorted(hashes, key=lambda x: (x[1], x[0]))
+
+        fields = [("hash", "str"), ("ts", "int")]
+        last_offset = hashes[-1][1]
+        metadata = {
+            "algorithm": "dejavu",
+            "content_id": filename,
+            "audio_duration": round(float(last_offset) / DEFAULT_FS * DEFAULT_WINDOW_SIZE * DEFAULT_OVERLAP_RATIO) * 1000,
+            "num_fingerprints": len(hashes),
+            "filehash": file_hash
+        }
+
+        writer = FingerprintWriter(filename=os.path.join(fpt_dir, filename + ".fpt"), fields=fields, kwargs=metadata)
+
+        # Adding some comments first to the .fpt file
+        # These are unique to dejavu algorithm, change as needed
+        writer.add_comments("")
+        writer.add_comments("Duration is a float measured in seconds of the **APPROXIMATED** audio duration")
+        writer.add_comments("Unless the ending is Silent/Near Silent (current guess), Duration should be very close approximation of actual duration")
+        writer.add_comments("")
+        writer.add_comments("Timestamp (ts) is measured in milliseconds")
+        writer.add_comments("")
+
+
+        for hash_val, offset in hashes:
+            # Convert the offset into milliseconds
+            ts = round(float(offset) / DEFAULT_FS * DEFAULT_WINDOW_SIZE * DEFAULT_OVERLAP_RATIO) * 1000
+            hash_val = "0x" + hash_val.upper()  # Adjust the hash
+            writer.write_fingerprints(hash_val, ts)
 
     def fingerprint_file(self, file_path: str, song_name: str = None) -> None:
         """
