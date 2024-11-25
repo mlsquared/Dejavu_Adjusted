@@ -17,7 +17,7 @@ from dejavu.config.settings import (DEFAULT_FS, DEFAULT_OVERLAP_RATIO,
                                     OFFSET_SECS, SONG_ID, SONG_NAME, TOPN)
 from dejavu.logic.fingerprint import fingerprint
 
-from fingerprint_writer_custom import FingerprintWriter
+from .fingerprint_writer_custom import FingerprintWriter
 
 
 class Dejavu:
@@ -125,6 +125,7 @@ class Dejavu:
 
     @staticmethod
     def custom_write_fpt_file(filename, hashes, file_hash):
+        print("Now in custom function")
         working_dir = os.getcwd().split("/")[1]  # Should be "app"
         fpt_dir = os.getenv("FPT_FILES_DIRECTORY")
         fpt_dir = os.path.join(working_dir, fpt_dir)
@@ -143,7 +144,7 @@ class Dejavu:
         }
 
         writer = FingerprintWriter(filename=os.path.join(fpt_dir, filename + ".fpt"), fields=fields, kwargs=metadata)
-
+        print(f"Created fpt file, {os.path.join(fpt_dir, filename + ".fpt")}")
         # Adding some comments first to the .fpt file
         # These are unique to dejavu algorithm, change as needed
         writer.add_comments("")
