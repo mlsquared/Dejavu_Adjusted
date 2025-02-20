@@ -85,7 +85,10 @@ class FingerprintWriter:
 
         with open(self.filename, "a") as f:
             try:
-                f.write(" ".join([str(a) for a in args]) + "\n")
+                hash_value = str(args[0])
+                time = str(args[1])
+                features = args[2]
+                f.write(f'{hash_value} {time} {features}\n')
                 self.wrote_fingerprints = True  # We are now writing fingerprints. Should not be able to add comments now
             except Exception as e:
                 raise ValueError(f"Error converting arguments to strings: {e}")
@@ -105,3 +108,4 @@ class FingerprintWriter:
         with open(self.filename, "a") as f:
             f.write("# " + comment + "\n")
 
+ 

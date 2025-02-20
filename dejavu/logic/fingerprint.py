@@ -47,7 +47,6 @@ def fingerprint(channel_samples: List[int],
     arr2D = 10 * np.log10(arr2D, out=np.zeros_like(arr2D), where=(arr2D != 0))
 
     local_maxima = get_2D_peaks(arr2D, plot=False, amp_min=amp_min)
-
     # return hashes
     return generate_hashes(local_maxima, fan_value=fan_value)
 
@@ -138,6 +137,8 @@ def generate_hashes(peaks: List[Tuple[int, int]], fan_value: int = DEFAULT_FAN_V
         peaks.sort(key=itemgetter(1))
 
     hashes = []
+    peak_hash_map = {}  # Dictionary mapping peaks to hashes
+
     for i in range(len(peaks)):
         for j in range(1, fan_value):
             if (i + j) < len(peaks):
@@ -150,7 +151,15 @@ def generate_hashes(peaks: List[Tuple[int, int]], fan_value: int = DEFAULT_FAN_V
 
                 if MIN_HASH_TIME_DELTA <= t_delta <= MAX_HASH_TIME_DELTA:
                     h = hashlib.sha1(f"{str(freq1)}|{str(freq2)}|{str(t_delta)}".encode('utf-8'))
+                    hash_value = (h.hexdigest()[0:FINGERPRINT_REDUCTION], t1)
 
                     hashes.append((h.hexdigest()[0:FINGERPRINT_REDUCTION], t1))
 
-    return hashes
+                    # Store the hash in the peak_hash_map. This should always be true
+                    if hash_value not in peak_hash_map:
+                        peak_hash_map[hash_value] = []
+                    else:
+                        print("Duplicate hash detected:", hash_value[0])
+                    peak_hash_map[hash_value].append((freq1, freq2, t_delta))
+
+    return hashes, peak_hash_map

@@ -101,18 +101,17 @@ class Dejavu:
         # Loop till we have all of them
         while True:
             try:
-                song_name, hashes, file_hash = next(iterator)
+                song_name, hashes, file_hash, peaks = next(iterator)
             except multiprocessing.TimeoutError:
                 continue
             except StopIteration:
                 break
             except Exception:
-                print("Failed fingerprinting")
                 # Print traceback because we can't reraise it here
                 traceback.print_exc(file=sys.stdout)
             else:
                 # Write to .fpt file instead of adding to DB
-                self.custom_write_fpt_file(song_name, hashes, file_hash)
+                self.custom_write_fpt_file(song_name, hashes, file_hash, peaks)
 
                 # sid = self.db.insert_song(song_name, file_hash, len(hashes))
                 #
@@ -124,7 +123,7 @@ class Dejavu:
         pool.join()
 
     @staticmethod
-    def custom_write_fpt_file(filename, hashes, file_hash):
+    def custom_write_fpt_file(filename, hashes, file_hash, peaks):
         print("Now in custom function")
         working_dir = "/" + os.getcwd().split("/")[1]  # Should be "/app"
         fpt_dir = os.getenv("FPT_FILES_DIRECTORY")
@@ -133,7 +132,8 @@ class Dejavu:
         # Sort the hashes based on offset first, then hash value
         hashes = sorted(hashes, key=lambda x: (x[1], x[0]))
 
-        fields = [("hash", "str"), ("ts", "int")]
+
+        fields = [("hash", "str"), ("ts", "int"), ("features", "str")]
         last_offset = 0 if len(hashes) == 0 else hashes[-1][1]
         metadata = {
             "algorithm": "dejavu",
@@ -153,13 +153,28 @@ class Dejavu:
         writer.add_comments("")
         writer.add_comments("Timestamp (ts) is measured in milliseconds")
         writer.add_comments("")
+        writer.add_comments("Features are: freq1, freq2, t_delta")
+        writer.add_comments("")
 
 
         for hash_val, offset in hashes:
             # Convert the offset into milliseconds
             ts = round(float(offset) / DEFAULT_FS * DEFAULT_WINDOW_SIZE * DEFAULT_OVERLAP_RATIO * 1000)
+            hash_key = (hash_val, offset)
+
+            # If Hash isn't present in peaks, write (NULL) to features, this should not happen.
+            if hash_key not in peaks:
+                hash_val = "0x" + hash_val.upper()  # Adjust the hash
+                writer.write_fingerprints(hash_val, ts, "(NULL)")
+                continue
+
             hash_val = "0x" + hash_val.upper()  # Adjust the hash
-            writer.write_fingerprints(hash_val, ts)
+            peak_entries = peaks[hash_key]
+
+            # Convert the peak values to a string representation
+            peak_values = "(" + ",".join(str(int(a)) for a in peak_entries[0]) + ")"
+
+            writer.write_fingerprints(hash_val, ts, peak_values)
 
     def fingerprint_file(self, file_path: str, song_name: str = None) -> None:
         """
@@ -176,16 +191,14 @@ class Dejavu:
         if song_hash in self.songhashes_set:
             print(f"{song_name} already fingerprinted, continuing...")
         else:
-            song_name, hashes, file_hash = Dejavu._fingerprint_worker(
-                file_path,
-                self.limit,
-                song_name=song_name
-            )
-            sid = self.db.insert_song(song_name, file_hash)
+            song_name, hashes, file_hash, peaks = Dejavu._fingerprint_worker((file_path, self.limit)) # Modify pass tuple
+            self.custom_write_fpt_file(song_name, hashes, file_hash, peaks)
 
-            self.db.insert_hashes(sid, hashes)
-            self.db.set_song_fingerprinted(sid)
-            self.__load_fingerprinted_audio_hashes()
+            # sid = self.db.insert_song(song_name, file_hash)
+
+            # self.db.insert_hashes(sid, hashes)
+            # self.db.set_song_fingerprinted(sid)
+            # self.__load_fingerprinted_audio_hashes()
 
     def generate_fingerprints(self, samples: List[int], Fs=DEFAULT_FS) -> Tuple[List[Tuple[str, int]], float]:
         f"""
@@ -279,24 +292,33 @@ class Dejavu:
 
         song_name, extension = os.path.splitext(os.path.basename(file_name))
 
-        fingerprints, file_hash = Dejavu.get_file_fingerprints(file_name, limit, print_output=True)
+        fingerprints, peaks, file_hash = Dejavu.get_file_fingerprints(file_name, limit, print_output=True)
 
-        return song_name, fingerprints, file_hash
+        return song_name, fingerprints, file_hash, peaks
 
     @staticmethod
     def get_file_fingerprints(file_name: str, limit: int, print_output: bool = False):
         channels, fs, file_hash = decoder.read(file_name, limit)
         fingerprints = set()
+        peaks = {}
         channel_amount = len(channels)
         for channeln, channel in enumerate(channels, start=1):
             if print_output:
                 print(f"Fingerprinting channel {channeln}/{channel_amount} for {file_name}")
 
-            hashes = fingerprint(channel, Fs=fs)
+            peaks_hashes = fingerprint(channel, Fs=fs)
 
             if print_output:
                 print(f"Finished channel {channeln}/{channel_amount} for {file_name}")
 
-            fingerprints |= set(hashes)
+            channel_peaks, hashes = peaks_hashes[1], peaks_hashes[0]
 
-        return fingerprints, file_hash
+            fingerprints |= set(hashes)
+            
+            for key, value in channel_peaks.items():
+                if key not in peaks:
+                    peaks[key] = value
+                else:
+                    peaks[key].extend(value)
+
+        return fingerprints, peaks, file_hash
